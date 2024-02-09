@@ -5,6 +5,9 @@ input_file = "contacts.vcf"
 output_prefix = "contacts_sans_duplication_"
 max_contacts_per_file = 200
 
+# Initialiser le compteur de contacts total
+total_contacts_written = 0
+
 # Lire le fichier VCF et traiter les contacts
 with open(input_file, "r", encoding="utf-8") as vcf_file:
     components = vobject.readComponents(vcf_file)
@@ -48,6 +51,7 @@ with open(input_file, "r", encoding="utf-8") as vcf_file:
         
         # Incrémenter le compteur de contacts
         contact_count += 1
+        total_contacts_written += 1
         
         # Si le nombre maximum de contacts par fichier est atteint, écrivez les contacts dans un nouveau fichier
         if contact_count == max_contacts_per_file:
@@ -119,3 +123,4 @@ with open(input_file, "r", encoding="utf-8") as vcf_file:
                 output_vcf.write("END:VCARD\n")
 
 print(f"Tous les contacts ont été divisés en fichiers de {max_contacts_per_file} contacts maximum.")
+print(f"Nombre total de contacts écrits dans les fichiers de sortie : {total_contacts_written}")
