@@ -27,13 +27,13 @@ with open(input_file, "r", encoding="utf-8") as vcf_file:
         email_values = component.email.value.split(',') if hasattr(component, 'email') else []
         
         # Obtenez la valeur du champ "TEL" (numéro de téléphone) du contact
-        tel_values = component.tel_list
+        tel_values = [tel.value for tel in component.tel_list] if hasattr(component, 'tel_list') else []
         
         # Si le champ "N" est vide, utilisez le champ "EMAIL" ou le champ "TEL" pour le nom
         if not n_value and email_values:
             n_value = email_values[0]
         elif not n_value and tel_values:
-            n_value = tel_values[0].value
+            n_value = tel_values[0]
         
         # Supprimez les espaces et les caractères vides du champ "N" pour éviter les faux doublons
         n_value_cleaned = "".join(str(n_value).split())
@@ -73,7 +73,7 @@ with open(input_file, "r", encoding="utf-8") as vcf_file:
                     
                     # Ajoutez tous les numéros de téléphone
                     for tel in tel_values:
-                        output_vcf.write(f"TEL;type=CELL;type=pref:{tel.value.strip()}\n")
+                        output_vcf.write(f"TEL;type=CELL;type=pref:{tel.strip()}\n")
                     
                     # Ajoutez tous les e-mails
                     for email in email_values:
@@ -106,7 +106,7 @@ with open(input_file, "r", encoding="utf-8") as vcf_file:
                 
                 # Ajoutez tous les numéros de téléphone
                 for tel in tel_values:
-                    output_vcf.write(f"TEL;type=CELL;type=pref:{tel.value.strip()}\n")
+                    output_vcf.write(f"TEL;type=CELL;type=pref:{tel.strip()}\n")
                 
                 # Ajoutez tous les e-mails
                 for email in email_values:
