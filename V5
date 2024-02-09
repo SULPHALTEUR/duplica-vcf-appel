@@ -23,9 +23,14 @@ with open(input_file, "r", encoding="utf-8") as vcf_file:
         # Obtenez la valeur du champ "EMAIL" (adresse e-mail) du contact
         email_value = component.email.value if hasattr(component, 'email') else ''
         
-        # Si le champ "N" est vide, utilisez le champ "EMAIL" pour le nom
+        # Obtenez la valeur du champ "TEL" (numéro de téléphone) du contact
+        tel_value = component.tel.value if hasattr(component, 'tel') else ''
+        
+        # Si le champ "N" est vide, utilisez le champ "EMAIL" ou le champ "TEL" pour le nom
         if not n_value and email_value:
             n_value = email_value
+        elif not n_value and tel_value:
+            n_value = tel_value
         
         # Supprimez les espaces et les caractères vides du champ "N" pour éviter les faux doublons
         n_value_cleaned = "".join(str(n_value).split())
@@ -45,7 +50,7 @@ with open(input_file, "r", encoding="utf-8") as vcf_file:
         contact_count += 1
         
         # Si le nombre maximum de contacts par fichier est atteint, écrivez les contacts dans un nouveau fichier
-        if contact_count > max_contacts_per_file:
+        if contact_count == max_contacts_per_file:
             with open(f"{output_prefix}{file_index}.vcf", "w", encoding="utf-8") as output_vcf:
                 for contact in contacts.values():
                     output_vcf.write("BEGIN:VCARD\n")
@@ -81,7 +86,7 @@ with open(input_file, "r", encoding="utf-8") as vcf_file:
             file_index += 1
             contacts = {}
 
-    # Écrire les contacts restants dans un dernier fichier VCF s'il en reste
+    # Écrire les contacts restants dans un dernier fichier s'il en reste
     if contacts:
         with open(f"{output_prefix}{file_index}.vcf", "w", encoding="utf-8") as output_vcf:
             for contact in contacts.values():
