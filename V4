@@ -20,9 +20,13 @@ with open(input_file, "r", encoding="utf-8") as vcf_file:
         # Obtenez la valeur du champ "N" (nom) du contact
         n_value = component.n.value if hasattr(component, 'n') else ''
         
+        # Vérifiez si le champ "N" est vide ou n'existe pas
+        if n_value is None or n_value == '':
+            continue  # Ignorez le contact s'il est vide
+        
         # Vérifiez si le champ "N" contient une adresse e-mail
         if '@' in n_value:
-            continue  # Ignorez le contact s'il s'agit d'une adresse e-mail
+            continue  # Ignorez le contact s'il contient une adresse e-mail
         
         # Obtenez la valeur du champ "EMAIL" (adresse e-mail) du contact
         email_value = component.email.value if hasattr(component, 'email') else ''
