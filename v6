@@ -3,116 +3,37 @@ import vobject
 # Définir le chemin du fichier d'entrée et le préfixe du nom des fichiers de sortie
 input_file = "contacts.vcf"
 output_prefix = "contacts_sans_duplication_"
-max_contacts_per_file = 200
+max_contacts_per_file = 20000
 
-# Initialiser le compteur de contacts total
+# Initialiser le compteur de contacts total et l'ensemble des clés uniques
 total_contacts_written = 0
+unique_vcards = set()
 
 # Lire le fichier VCF et traiter les contacts
 with open(input_file, "r", encoding="utf-8") as vcf_file:
     components = vobject.readComponents(vcf_file)
     
-    # Initialiser le compteur de contacts
     contact_count = 0
     file_index = 1
     
-    # Créer un dictionnaire pour stocker les contacts basés sur le champ "N" (nom) ou l'adresse e-mail
-    contacts = {}
-    
     for component in components:
-        # Obtenez la valeur du champ "N" (nom) du contact
-        n_value = component.n.value if hasattr(component, 'n') else ''
+        vcard_key = repr([prop.value for prop in component.getChildren()])
         
-        # Obtenez la valeur du champ "EMAIL" (adresse e-mail) du contact
-        email_values = component.email.value.split(',') if hasattr(component, 'email') else []
-        
-        # Obtenez la valeur du champ "TEL" (numéro de téléphone) du contact
-        tel_values = [tel.value for tel in component.tel_list] if hasattr(component, 'tel_list') else []
-        
-        # Si le champ "N" est vide, utilisez le champ "EMAIL" ou le champ "TEL" pour le nom
-        if not n_value and email_values:
-            n_value = email_values[0]
-        elif not n_value and tel_values:
-            n_value = tel_values[0]
-        
-        # Supprimez les espaces et les caractères vides du champ "N" pour éviter les faux doublons
-        n_value_cleaned = "".join(str(n_value).split())
-        
-        # Si le champ "N" est déjà dans le dictionnaire, ignorez ce contact (doublon)
-        if n_value_cleaned in contacts:
-            continue
-        
-        # Vérifiez si le champ "TEL" (numéro de téléphone) existe
-        if not tel_values:
-            continue  # Ignorez le contact s'il n'a pas de numéro de téléphone
-        
-        # Ajoutez le contact au dictionnaire
-        contacts[n_value_cleaned] = component
-        
-        # Incrémenter le compteur de contacts
-        contact_count += 1
-        total_contacts_written += 1
-        
-        # Si le nombre maximum de contacts par fichier est atteint, écrivez les contacts dans un nouveau fichier
-        if contact_count == max_contacts_per_file:
-            with open(f"{output_prefix}{file_index}.vcf", "w", encoding="utf-8") as output_vcf:
-                for contact in contacts.values():
-                    output_vcf.write("BEGIN:VCARD\n")
-                    output_vcf.write("VERSION:3.0\n")
-                    
-                    if hasattr(contact, 'n'):
-                        output_vcf.write(f"N:{contact.n.value}\n")
-                    
-                    # Ajoutez la ligne FN en utilisant le champ "N" comme nom
-                    if hasattr(contact, 'n'):
-                        output_vcf.write(f"FN:{contact.n.value}\n")
-                    
-                    # Copiez le champ REV du contact d'origine
-                    if hasattr(contact, 'rev'):
-                        output_vcf.write(f"REV:{contact.rev.value}\n")
-                    
-                    # Ajoutez tous les numéros de téléphone
-                    for tel in tel_values:
-                        output_vcf.write(f"TEL;type=CELL;type=pref:{tel.strip()}\n")
-                    
-                    # Ajoutez tous les e-mails
-                    for email in email_values:
-                        output_vcf.write(f"EMAIL;type=INTERNET;type=HOME;type=pref:{email.strip()}\n")
-                    
-                    output_vcf.write("END:VCARD\n")
+        if vcard_key not in unique_vcards:
+            unique_vcards.add(vcard_key)
+            contact_count += 1
+            total_contacts_written += 1
             
-            # Réinitialiser le compteur de contacts et le dictionnaire des contacts pour le nouveau fichier
-            contact_count = 0
-            file_index += 1
-            contacts = {}
-
-    # Écrire les contacts restants dans un dernier fichier s'il en reste
-    if contacts:
-        with open(f"{output_prefix}{file_index}.vcf", "w", encoding="utf-8") as output_vcf:
-            for contact in contacts.values():
-                output_vcf.write("BEGIN:VCARD\n")
-                output_vcf.write("VERSION:3.0\n")
-                
-                if hasattr(contact, 'n'):
-                    output_vcf.write(f"N:{contact.n.value}\n")
-                
-                # Ajoutez la ligne FN en utilisant le champ "N" comme nom
-                if hasattr(contact, 'n'):
-                    output_vcf.write(f"FN:{contact.n.value}\n")
-                
-                # Copiez le champ REV du contact d'origine
-                if hasattr(contact, 'rev'):
-                    output_vcf.write(f"REV:{contact.rev.value}\n")
-                
-                # Ajoutez tous les numéros de téléphone
-                for tel in tel_values:
-                    output_vcf.write(f"TEL;type=CELL;type=pref:{tel.strip()}\n")
-                
-                # Ajoutez tous les e-mails
-                for email in email_values:
-                    output_vcf.write(f"EMAIL;type=INTERNET;type=HOME;type=pref:{email.strip()}\n")
-                
-                output_vcf.write("END:VCARD\n")
+            if contact_count > max_contacts_per_file:
+                file_index += 1
+                contact_count = 1
+            
+            output_file_path = f"{output_prefix}{file_index}.vcf"
+            with open(output_file_path, "a", encoding="utf-8") as output_vcf:
+                serialized_component = component.serialize()
+                # Diviser en lignes, supprimer les lignes vides, et rejoindre avec un seul saut de ligne
+                cleaned_component = "\n".join(filter(None, serialized_component.splitlines()))
+                output_vcf.write(cleaned_component + "\n")  # Ajouter un saut de ligne final après la vCard
 
 print(f"Tous les contacts ont été divisés en fichiers de {max_contacts_per_file} contacts maximum.")
 print(f"Nombre total de contacts écrits dans les fichiers de sortie : {total_contacts_written}")
