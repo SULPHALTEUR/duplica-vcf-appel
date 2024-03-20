@@ -5,24 +5,17 @@ input_file = "contacts.vcf"
 output_prefix = "contacts_sans_duplication_"
 max_contacts_per_file = 20000
 
-# Critères de suppression supplémentaires
-exclusion_criteria = ["@"]  # Exclure si le champ N contient un de ces critères
-
-# Vérifier si le contact doit être exclu basé sur les critères précédents
-def should_exclude_based_on_criteria(vcard, criteria):
-    for criterion in criteria:
-        if criterion in str(vcard.n.valueRepr()):
-            return True
-    return False
-
-# Vérifier si le contact doit être exclu basé sur la composition des champs
-def should_exclude_based_on_fields(vcard):
-    has_note_or_item_only = True
+# Vérifier si le contact doit être exclu basé sur l'absence de numéro de téléphone et d'adresse mail
+def should_exclude_based_on_phone_and_email(vcard):
+    has_phone = False
+    has_email = False
     for child in vcard.getChildren():
-        if child.name not in ["NOTE", "ITEM"]:
-            has_note_or_item_only = False
-            break
-    return has_note_or_item_only
+        if child.name == "TEL":
+            has_phone = True
+        if child.name == "EMAIL":
+            has_email = True
+    # Si n'a ni téléphone ni email, retourner True pour exclusion
+    return not (has_phone or has_email)
 
 # Initialiser le compteur de contacts total
 total_contacts_written = 0
@@ -33,8 +26,10 @@ unique_contacts = {}
 # Lire le fichier VCF et traiter les contacts
 with open(input_file, "r", encoding="utf-8") as vcf_file:
     for component in vobject.readComponents(vcf_file):
+        # Générer une clé unique basée sur une représentation textuelle du champ `N`
         n_field = str(component.n.valueRepr()) if component.n else "Unnamed"
-        if n_field not in unique_contacts and not should_exclude_based_on_criteria(component, exclusion_criteria) and not should_exclude_based_on_fields(component):
+        # Vérifier les conditions d'exclusion
+        if n_field not in unique_contacts and not should_exclude_based_on_phone_and_email(component):
             unique_contacts[n_field] = component
 
 # Écrire les contacts uniques dans des fichiers, en respectant la limite max par fichier
