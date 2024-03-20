@@ -1,100 +1,77 @@
-import vobject
+def parse_vcf(filename):
+    """
+    Parse le fichier VCF et retourne une liste de dictionnaires représentant chaque vCard.
+    """
+    vcards = []
+    with open(filename, 'r', encoding='utf-8') as file:
+        vcard = {}
+        note_seen = False  # Pour garder une trace de la clé NOTE
+        item_seen = False  # Pour garder une trace de la clé item1
+        for line in file:
+            if line.startswith('BEGIN:VCARD'):
+                if vcard:  # Si une vCard précédente est en cours, l'ajouter à la liste
+                    vcards.append(vcard)
+                vcard = {'BEGIN': 'VCARD'}  # Commencer une nouvelle vCard
+                note_seen = False  # Réinitialiser la trace de la clé NOTE
+                item_seen = False  # Réinitialiser la trace de la clé item1
+            elif line.startswith('END:VCARD'):
+                vcards.append(vcard)
+            else:
+                if ':' in line:
+                    key, value = line.strip().split(':', 1)
+                    if key == 'NOTE':
+                        if note_seen and vcard.get(key, '') == value:  # Si NOTE a déjà été vu avec la même valeur, ignorer cette ligne
+                            continue
+                        note_seen = True
+                    elif key.startswith('item1'):
+                        if item_seen and vcard.get(key, '') == value:  # Si item1 a déjà été vu avec la même valeur, ignorer cette ligne
+                            continue
+                        item_seen = True
+                    vcard[key] = value
+                else:
+                    if vcard:  # Vérifier si une vCard est déjà en cours de construction
+                        vcard[key] += line.strip()  # Ajouter la ligne à la valeur précédente
+    return vcards
 
-# Définir le chemin du fichier d'entrée et le préfixe du nom des fichiers de sortie
-input_file = "contacts.vcf"
-output_prefix = "contacts_sans_duplication_"
-max_contacts_per_file = 200
+def compare_vcards(vcard1, vcard2):
+    """
+    Compare deux vCards en se basant sur le champ 'N'.
+    Retourne True si les vCards sont les mêmes, False sinon.
+    """
+    return vcard1.get('N') == vcard2.get('N')
 
-# Lire le fichier VCF et traiter les contacts
-with open(input_file, "r", encoding="utf-8") as vcf_file:
-    components = vobject.readComponents(vcf_file)
-    
-    # Initialiser le compteur de contacts
-    contact_count = 0
-    file_index = 1
-    
-    # Créer un dictionnaire pour stocker les contacts basés sur le champ "N" (nom) ou l'adresse e-mail
-    contacts = {}
-    
-    for component in components:
-        # Obtenez la valeur du champ "N" (nom) du contact
-        n_value = component.n.value if hasattr(component, 'n') else ''
-        
-        # Obtenez la valeur du champ "EMAIL" (adresse e-mail) du contact
-        email_value = component.email.value if hasattr(component, 'email') else ''
-        
-        # Si le champ "N" est vide, utilisez le champ "EMAIL" pour le nom
-        if not n_value and email_value:
-            n_value = email_value
-        
-        # Supprimez les espaces et les caractères vides du champ "N" pour éviter les faux doublons
-        n_value_cleaned = "".join(str(n_value).split())
-        
-        # Si le champ "N" est déjà dans le dictionnaire, ignorez ce contact (doublon)
-        if n_value_cleaned in contacts:
-            continue
-        
-        # Ajoutez le contact au dictionnaire
-        contacts[n_value_cleaned] = component
-        
-        # Incrémenter le compteur de contacts
-        contact_count += 1
-        
-        # Si le nombre maximum de contacts par fichier est atteint, écrivez les contacts dans un nouveau fichier
-        if contact_count == max_contacts_per_file:
-            with open(f"{output_prefix}{file_index}.vcf", "w", encoding="utf-8") as output_vcf:
-                for contact in contacts.values():
-                    output_vcf.write("BEGIN:VCARD\n")
-                    output_vcf.write("VERSION:3.0\n")
-                    
-                    if hasattr(contact, 'n'):
-                        output_vcf.write(f"N:{contact.n.value}\n")
-                    
-                    # Ajoutez la ligne FN en utilisant le champ "N" comme nom
-                    if hasattr(contact, 'n'):
-                        output_vcf.write(f"FN:{contact.n.value}\n")
-                    
-                    # Copiez le champ REV du contact d'origine
-                    if hasattr(contact, 'rev'):
-                        output_vcf.write(f"REV:{contact.rev.value}\n")
-                    
-                    # Ajoutez le champ EMAIL manuellement
-                    if hasattr(contact, 'email'):
-                        email_values = contact.email.value.split(',')
-                        for email in email_values:
-                            output_vcf.write(f"EMAIL;type=INTERNET;type=HOME;type=pref:{email.strip()}\n")
-                    
-                    output_vcf.write("END:VCARD\n")
-            
-            # Réinitialiser le compteur de contacts et le dictionnaire des contacts pour le nouveau fichier
-            contact_count = 0
-            file_index += 1
-            contacts = {}
+def remove_duplicates(vcards):
+    """
+    Supprime les doublons dans la liste de vCards en conservant celui avec le moins de champs en cas de doublon.
+    """
+    unique_vcards = []
+    for vcard in vcards:
+        if not any(compare_vcards(vcard, unique_vcard) for unique_vcard in unique_vcards):
+            unique_vcards.append(vcard)
+        else:
+            # Supprimer le doublon en conservant celui avec le moins de champs
+            index = unique_vcards.index(next(unique_vcard for unique_vcard in unique_vcards if compare_vcards(vcard, unique_vcard)))
+            if len(vcard) < len(unique_vcards[index]):
+                unique_vcards[index] = vcard
+    return unique_vcards
 
-    # Écrire les contacts restants dans un dernier fichier s'il en reste
-    if contacts:
-        with open(f"{output_prefix}{file_index}.vcf", "w", encoding="utf-8") as output_vcf:
-            for contact in contacts.values():
-                output_vcf.write("BEGIN:VCARD\n")
-                output_vcf.write("VERSION:3.0\n")
-                
-                if hasattr(contact, 'n'):
-                    output_vcf.write(f"N:{contact.n.value}\n")
-                
-                # Ajoutez la ligne FN en utilisant le champ "N" comme nom
-                if hasattr(contact, 'n'):
-                    output_vcf.write(f"FN:{contact.n.value}\n")
-                
-                # Copiez le champ REV du contact d'origine
-                if hasattr(contact, 'rev'):
-                    output_vcf.write(f"REV:{contact.rev.value}\n")
-                
-                # Ajoutez le champ EMAIL manuellement
-                if hasattr(contact, 'email'):
-                    email_values = contact.email.value.split(',')
-                    for email in email_values:
-                        output_vcf.write(f"EMAIL;type=INTERNET;type=HOME;type=pref:{email.strip()}\n")
-                
-                output_vcf.write("END:VCARD\n")
+def write_vcards_to_files(vcards, batch_size):
+    """
+    Écrit les vCards dans des fichiers de sortie avec un maximum de 'batch_size' vCards par fichier.
+    """
+    for i in range(0, len(vcards), batch_size):
+        with open(f'output_{i//batch_size + 1}.vcf', 'w', encoding='utf-8') as file:  # Spécifier l'encodage utf-8
+            for vcard in vcards[i:i+batch_size]:
+                for key, value in vcard.items():
+                    file.write(f"{key}:{value}\n")
+                file.write('END:VCARD\n')
 
-print(f"Tous les contacts ont été divisés en fichiers de {max_contacts_per_file} contacts maximum.")
+def main():
+    filename = 'contacts.vcf'  # Nom de votre fichier VCF en entrée
+    batch_size = 200  # Nombre maximum de vCards par fichier de sortie
+    vcards = parse_vcf(filename)
+    unique_vcards = remove_duplicates(vcards)
+    write_vcards_to_files(unique_vcards, batch_size)
+
+if __name__ == "__main__":
+    main()
