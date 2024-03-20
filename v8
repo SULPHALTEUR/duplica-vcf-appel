@@ -1,0 +1,56 @@
+import vobject
+
+# Définir le chemin du fichier d'entrée et le préfixe du nom des fichiers de sortie
+input_file = "contacts.vcf"
+output_prefix = "contacts_sans_duplication_"
+max_contacts_per_file = 20000
+
+# Critères de suppression supplémentaires
+exclusion_criteria = ["@"]  # Exclure si le champ N contient un de ces critères
+
+# Vérifier si le contact doit être exclu basé sur les critères précédents
+def should_exclude_based_on_criteria(vcard, criteria):
+    for criterion in criteria:
+        if criterion in str(vcard.n.valueRepr()):
+            return True
+    return False
+
+# Vérifier si le contact doit être exclu basé sur la composition des champs
+def should_exclude_based_on_fields(vcard):
+    has_note_or_item_only = True
+    for child in vcard.getChildren():
+        if child.name not in ["NOTE", "ITEM"]:
+            has_note_or_item_only = False
+            break
+    return has_note_or_item_only
+
+# Initialiser le compteur de contacts total
+total_contacts_written = 0
+
+# Utiliser un dictionnaire pour stocker les contacts uniques
+unique_contacts = {}
+
+# Lire le fichier VCF et traiter les contacts
+with open(input_file, "r", encoding="utf-8") as vcf_file:
+    for component in vobject.readComponents(vcf_file):
+        n_field = str(component.n.valueRepr()) if component.n else "Unnamed"
+        if n_field not in unique_contacts and not should_exclude_based_on_criteria(component, exclusion_criteria) and not should_exclude_based_on_fields(component):
+            unique_contacts[n_field] = component
+
+# Écrire les contacts uniques dans des fichiers, en respectant la limite max par fichier
+file_index = 1
+contact_count = 0
+for n_field, component in unique_contacts.items():
+    if contact_count >= max_contacts_per_file:
+        file_index += 1
+        contact_count = 0
+    
+    output_file_path = f"{output_prefix}{file_index}.vcf"
+    with open(output_file_path, "a", encoding="utf-8", newline='') as output_vcf:
+        serialized_component = component.serialize()
+        output_vcf.write(serialized_component)
+        contact_count += 1
+        total_contacts_written += 1
+
+print(f"Tous les contacts ont été divisés en fichiers de {max_contacts_per_file} contacts maximum.")
+print(f"Nombre total de contacts écrits dans les fichiers de sortie : {total_contacts_written}")
